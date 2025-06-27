@@ -4,6 +4,7 @@ import shlex
 from pathlib import PurePath
 from typing import Literal, Self
 
+from fd_env import LocalEnvironment
 from pydantic import BaseModel, ConfigDict, Field
 from swerex.deployment.abstract import AbstractDeployment
 from swerex.deployment.config import DeploymentConfig, DockerDeploymentConfig, get_deployment
@@ -78,6 +79,7 @@ class SWEEnv:
         self.name = name
         self.clean_multi_line_functions = lambda x: x
         self._chook = CombinedEnvHooks()
+        self.env = LocalEnvironment()
         for hook in hooks or []:
             self.add_hook(hook)
 
@@ -119,6 +121,7 @@ class SWEEnv:
             return
 
         folders = self.communicate(input="ls", check="raise").split("\n")
+        print(f"🦖 DEBUG   FOLDERS ARE {folders}")
         if self.repo.repo_name in folders:
             return
 
@@ -216,20 +219,22 @@ class SWEEnv:
             output: output from container
         """
         self.logger.log(logging.TRACE, "Input:\n%s", input)  # type: ignore
-        rex_check = "silent" if check else "ignore"
-        r = asyncio.run(
-            self.deployment.runtime.run_in_session(BashAction(command=input, timeout=timeout, check=rex_check))
-        )
-        output = r.output
-        self.logger.log(logging.TRACE, "Output:\n%s", output)  # type: ignore
-        if check != "ignore" and r.exit_code != 0:
-            self.logger.error(f"{error_msg}:\n{output}")
-            msg = f"Command {input!r} failed ({r.exit_code=}): {error_msg}"
+        # rex_check = "silent" if check else "ignore"
+        # r = asyncio.run(
+        #     self.deployment.runtime.run_in_session(BashAction(command=input, timeout=timeout, check=rex_check))
+        # )
+        r = self.env.execute(command=input,shell=True,text=True).result()
+        print(f"THIS IS FROM COMMUNICATE: {r}")
+
+        self.logger.log(logging.TRACE, "Output:\n%s", r)  # type: ignore
+        if check != "ignore" and r[0] != 0:
+            self.logger.error(f"{error_msg}:\n{r}")
+            msg = f"Command {input!r} failed ({r[0]=}): {error_msg}"
             self.logger.error(msg)
             if check == "raise":
                 self.close()
                 raise RuntimeError(msg)
-        return output
+        return str(r[1])
 
     def read_file(self, path: str | PurePath, encoding: str | None = None, errors: str | None = None) -> str:
         """Read file contents from container
@@ -271,6 +276,8 @@ class SWEEnv:
         cwd: str | None = None,
     ) -> None:
         """Execute a command in the environment independent of the session (i.e., as a subprocess)"""
-        asyncio.run(
-            self.deployment.runtime.execute(RexCommand(command=command, shell=shell, check=check, env=env, cwd=cwd))
-        )
+        self.env.execute(command=input, shell=shell, env=env, cwd=cwd).result()
+
+        # asyncio.run(
+        #     self.deployment.runtime.execute(RexCommand(command=command, shell=shell, check=check, env=env, cwd=cwd))
+        # )

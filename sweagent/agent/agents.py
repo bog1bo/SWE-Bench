@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 
 import yaml
+from fd_env import LocalEnvironment
 from jinja2 import Template
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from simple_parsing.helpers.fields import field
@@ -469,6 +470,7 @@ class DefaultAgent(AbstractAgent):
         self.logger = get_logger("swea-agent", emoji="🤠")
         # Set in run method
         self._env: SWEEnv | None = None
+        self.environment: LocalEnvironment = LocalEnvironment()
         self._problem_statement: ProblemStatement | ProblemStatementConfig | None = None
         self.traj_path: Path | None = None
 
@@ -841,7 +843,7 @@ class DefaultAgent(AbstractAgent):
         submission_command = "git add -A && git diff --cached > /root/model.patch"
         self.logger.info("Executing submission command %s in %s", submission_command, repo_name)
         try:
-            self._env.execute_command(submission_command, check=True, cwd=repo_name)
+            self.environment.execute(command=submission_command, shell=True, cwd=repo_name)
         except Exception as e:
             self.logger.error("Failed to execute submission command, got %s", e)
         # There's still hope for the submission, because the `/root/model.patch` file might have been

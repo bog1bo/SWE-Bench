@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from fd_env import LocalEnvironment
 from git import InvalidGitRepositoryError
 from git import Repo as GitRepo
 from pydantic import BaseModel, ConfigDict, Field
@@ -108,9 +109,12 @@ class LocalRepoConfig(BaseModel):
         asyncio.run(
             deployment.runtime.upload(UploadRequest(source_path=str(self.path), target_path=f"/{self.repo_name}"))
         )
-        r = asyncio.run(deployment.runtime.execute(Command(command=f"chown -R root:root {self.repo_name}", shell=True)))
-        if r.exit_code != 0:
-            msg = f"Failed to change permissions on copied repository (exit code: {r.exit_code}, stdout: {r.stdout}, stderr: {r.stderr})"
+        # r = asyncio.run(deployment.runtime.execute(Command(command=f"chown -R root:root {self.repo_name}", shell=True)))
+        env = LocalEnvironment()
+        r = env.execute(command=f"chown -R root:root {self.repo_name}", shell=True,text=True).result()
+        
+        if r[0] != 0:
+            msg = f"Failed to change permissions on copied repository (exit code: {r[0]}, stdout: {r[1]}, stderr: {r[2]})"
             raise RuntimeError(msg)
 
     def get_reset_commands(self) -> list[str]:

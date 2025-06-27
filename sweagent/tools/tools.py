@@ -13,6 +13,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
+from fd_env import LocalEnvironment
 from pydantic import BaseModel, Field
 from swerex.runtime.abstract import Command as RexCommand
 from swerex.runtime.abstract import UploadRequest
@@ -241,6 +242,7 @@ class ToolHandler:
         self.logger = get_logger("swea-tools", emoji="🧰")
         # For testing: Return this state instead of querying the environment
         self.mock_state: dict[str, str] | None = None
+        self.env:LocalEnvironment = LocalEnvironment()
 
     @classmethod
     def from_config(cls, config: ToolConfig) -> Self:
@@ -277,9 +279,10 @@ class ToolHandler:
         if command == "bash":
             return
         try:
-            await env.deployment.runtime.execute(
-                RexCommand(command=f"which {command}", shell=True, check=True, env=env_vars)
-            )
+            # await env.deployment.runtime.execute(
+            #     RexCommand(command=f"which {command}", shell=True, check=True, env=env_vars)
+            # )
+            self.env.execute(command=f"which {command}", shell=True,  env=env_vars).result()
         except Exception:
             msg = f"Tool {command} is not available in the container."
             raise RuntimeError(msg) from None
